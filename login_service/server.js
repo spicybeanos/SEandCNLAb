@@ -1,6 +1,7 @@
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const { v4: uuidv4 } = require("uuid");
+const bcrypt = require("bcrypt");
 
 const app = express();
 const port = 3000;
@@ -8,7 +9,7 @@ const port = 3000;
 app.use(express.json());
 
 // Initialize the SQLite database
-const db = new sqlite3.Database(":memory:", (err) => {
+const db = new sqlite3.Database("./users.db", (err) => {
   if (err) {
     console.error("Could not open database:", err);
   } else {
@@ -28,35 +29,45 @@ db.serialize(() => {
 });
 
 // Register or login route
-app.post("/login", (req, res) => {
-    console.log("got response");
-  const { user, pass, action } = req.body;
+app.post("/login", async (req, res) => {
+  const { action ,user, pass } = req.body;
 
   if (action === "register") {
-    // Register action
-    db.get("SELECT * FROM users WHERE username = ?", [user], (err, row) => {
+    // Check if the username already exists
+    db.get("SELECT * FROM users WHERE username = ?", [user], async (err, row) => {
       if (err) {
         res.status(500).json({ error: "Database error" });
       } else if (row) {
         res.status(400).json({ error: "Username already exists" });
       } else {
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(pass, 10);
         const id = uuidv4();
-        db.run("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", [id, user, pass], (err) => {
+
+        db.run("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", [id, user, hashedPassword], (err) => {
           if (err) {
             res.status(500).json({ error: "Database error" });
           } else {
-            res.json({ id });
+            console.log("Registerd :"+row.id);
+            res.json({ UUID:id });
           }
         });
       }
     });
   } else if (action === "login") {
-    // Login action
-    db.get("SELECT id FROM users WHERE username = ? AND password = ?", [user, pass], (err, row) => {
+    // Get the stored hash for the username
+    db.get("SELECT id, password FROM users WHERE username = ?", [user], async (err, row) => {
       if (err) {
         res.status(500).json({ error: "Database error" });
       } else if (row) {
-        res.json({ id: row.id });
+        // Compare the hashed password
+        const match = await bcrypt.compare(pass, row.password);
+        if (match) {
+          console.log("Logged in :"+row.id);
+          res.json({ UUID: row.id });
+        } else {
+          res.status(400).json({ error: "Invalid username or password" });
+        }
       } else {
         res.status(400).json({ error: "Invalid username or password" });
       }

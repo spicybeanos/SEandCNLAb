@@ -49,7 +49,7 @@ app.post("/login", async (req, res) => {
             res.status(500).json({ error: "Database error" });
           } else {
             console.log("Registerd :"+row.id);
-            res.json({ UUID:id });
+            res.json({ UUID:id,username:user });
           }
         });
       }
@@ -64,7 +64,7 @@ app.post("/login", async (req, res) => {
         const match = await bcrypt.compare(pass, row.password);
         if (match) {
           console.log("Logged in :"+row.id);
-          res.json({ UUID: row.id });
+          res.json({ UUID: row.id,username:user });
         } else {
           res.status(400).json({ error: "Invalid username or password" });
         }
